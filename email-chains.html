@@ -1,1 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Chain Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0e0e11; --surface: #16161a; --surface2: #1e1e24; --border: #2a2a35; --accent: #7b61ff; --accent2: #00d4aa; --text: #e8e8f0; --muted: #6b6b7e; --card-w: 520px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "Syne", sans-serif; min-height: 100vh; overflow-x: auto; }
+  .header { position: sticky; top: 0; z-index: 100; background: rgba(14,14,17,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
+  .header-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 12px var(--accent2); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+  .header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .header-meta { margin-left: auto; font-family: "DM Mono", monospace; font-size: 11px; color: var(--muted); }
+  .board { display: flex; gap: 32px; padding: 32px; align-items: flex-start; min-height: calc(100vh - 61px); }
+  .column { flex-shrink: 0; width: var(--card-w); display: flex; flex-direction: column; }
+  .column-header { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px 12px 0 0; padding: 14px 16px; position: sticky; top: 61px; z-index: 10; }
+  .column-sender { font-size: 11px; font-family: "DM Mono", monospace; color: var(--accent2); letter-spacing: 0.05em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .column-company { font-size: 14px; font-weight: 700; color: var(--text); }
+  .column-count { font-size: 11px; color: var(--muted); font-family: "DM Mono", monospace; margin-top: 4px; }
+  .column-body { display: flex; flex-direction: column; align-items: center; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 0 0 12px 12px; padding: 0 16px 16px; background: var(--surface); }
+  .email-card { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 16px; transition: border-color 0.2s, transform 0.2s; cursor: default; }
+  .email-card:hover { border-color: var(--accent); transform: translateX(3px); }
+  .email-card.new { border-color: var(--accent2); box-shadow: 0 0 0 1px rgba(0,212,170,0.2); }
+  .card-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .card-num { font-family: "DM Mono", monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+  .card-date { font-family: "DM Mono", monospace; font-size: 10px; color: var(--muted); }
+  .card-subject { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 8px; }
+  .card-from { font-size: 11px; color: var(--muted); font-family: "DM Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .arrow { display: flex; flex-direction: column; align-items: center; margin: 4px 0; gap: 2px; }
+  .arrow-line { width: 1px; height: 20px; background: var(--border); }
+  .arrow-interval { font-family: "DM Mono", monospace; font-size: 10px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; letter-spacing: 0.05em; }
+  .arrow-tip { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid var(--border); }
+  .new-badge { display: inline-block; font-size: 9px; font-family: "DM Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent2); border: 1px solid var(--accent2); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; }
+  .email-shadow-host { display: block; margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid #2a2a35; height: 900px; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-dot"></div>
+  <h1>Email Chain Tracker</h1>
+  <div class="header-meta" id="last-updated">Updated: —</div>
+</div>
+<div class="board" id="board">
 
+  <div class="column" data-sender="no-reply@email.myiq.com">
+    <div class="column-header">
+      <div class="column-sender">no-reply@email.myiq.com</div>
+      <div class="column-company">myIQ</div>
+      <div class="column-count">5 emails</div>
+    </div>
+    <div class="column-body">
+      
+<div class="email-card" style="width:100%;">
+  <div class="card-meta">
+    <span class="card-num">#1</span>
+    <span class="card-date">10 Mar 2026, 23:19</span>
+  </div>
+  <div class="card-subject">Results reveal your cognitive advantage</div>
+  <div class="card-from">myIQ</div>
+  <div
+    class="email-shadow-host"
+    style="margin-top:8px; border-radius:8px; overflow:hidden; border:1px solid #2a2a35; height:600px;"
+    data-html="<!DOCTYPE html><html lang=&quot;en&quot; xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;><head>
+    <meta charset=&quot;utf-8&quot;/>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;/>
+    <meta http-equiv=&quot;X-UA-Compatible&quot; content=&quot;IE=edge&quot;/>
+    <meta name=&quot;x-apple-disable-message-reformatting&quot;/>
+    <meta name=&quot;format-detection&quot; content=&quot;telephone=no,address=no,email=no,date=no,url=no&quot;/>
+    <meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;/>
+    <meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;/>
+    <title>Results reveal your cognitive advantage</title>
+    
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    
+    <style type=&quot;text/css&quot;>
+.logo-link {
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+.social-media-link {
+  display: inline-block !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-color: #0d756e !important;
+  border-radius: 50% !important;
+  margin: 0 8px !important;
+  text-decoration: none !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  line-height: 40px !important;
+}
+.footer-link {
+  color: #0d756e !important;
+  text-decoration: underline !important;
+}
+.unsubscribe-link {
+  color: #999999 !important;
+  text-decoration: underline !important;
+}
+@media (prefers-color-scheme: dark) {
+  .email-container {
+    background-color: #1a1a1a !important;
+    border-color: #333333 !important;
+  }
+
+  .email-content {
+    background-color: #1a1a1a !important;
+  }
+
+  .content-heading,
+.content-paragraph,
+.content-list-item {
+    color: #ffffff !important;
+  }
+
+  .email-footer {
+    background-color: #2a2a2a !important;
+    border-color: #333333 !important;
+  }
+}
+@media only screen and (max-width: 600px) {
+  .email-wrapper {
+    padding: 10px 5px !important;
+  }
+
+  .email-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .email-header {
+    padding: 20px 16px !important;
+  }
+
+  .email-content {
+    padding: 24px 16px !important;
+  }
+
+  .content-heading {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+
+  .content-paragraph,
+.content-list-item {
+    font-size: 15px !important;
+  }
+
+  .cta-button {
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    width: auto !important;
+    display: inline-block !important;
+  }
+
+  .email-footer {
+    padding: 24px 16px !important;
+  }
+
+  .social-media-link {
+    margin: 0 6px !important;
+  }
+}
+@media only screen and (min-device-width: 375px) and (max-device-width: 413px) {
+  .email-container {
+    min-width: 375px !important;
+  }
+}
+</style>
+</head>
+
+<body class=&quot;body&quot; style=&quot;margin: 0 !important; padding: 0 !important; width: 100% !important; min-width: 100% !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; -webkit-font-smoothing: antialiased !important; font-family: Arial, Helvetica, sans-serif !important; background-color: white !important; color: #333333 !important; font-size: 16px !important; line-height: 1.6 !important; text-align: left !important;&quot;>
+    <!--[if mso | IE]>
+    <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;background-color: #f8f9fa;&quot;>
+        <tr>
+            <td>
+    <![endif]-->
+    
+    <div class=&quot;email-wrapper&quot; style=&quot;padding: 20px 10px !important; width: 100% !important;&quot;>
+        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;margin: 0 auto; max-width: 600px; border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+            <tbody><tr>
+                <td style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important;&quot;>
+                    <div class=&quot;email-container&quot; style=&quot;max-width: 600px !important; margin: 0 auto !important; background-color: #ffffff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; overflow: hidden !important;&quot;>
+                        <!-- Email Header Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-header&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #f8f9fa !important; padding: 10px 10px !important; text-align: center !important; border-bottom: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#f8f9fa&quot; align=&quot;center&quot;>
+                                    <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_dXNlcl90b2tlbj1KVGRDSlRJeWFXUWxNaklsTTBFbE1qSTJZekEyTVdZNU1DMDRPV0ptTFRSalpEZ3RPVFF4TUMwMk1tTTFOMlZoT1dWaU5tSWxNaklsTWtNbE1qSmxiV0ZwYkNVeU1pVXpRU1V5TW5CeVpYUjBlV1pzZFdabWVXTnZkeVUwTUdkdFlXbHNMbU52YlNVeU1pVXlReVV5TW5WelpYSnVZVzFsSlRJeUpUTkJKVEl5SlRJeUpUSkRKVEl5Y21WemRXeDBjeVV5TWlVelFTVTNRaVV5TW5WelpYSlRZMjl5WlNVeU1pVXpRVEV4TWlVeVF5VXlNbk53Wlc1MFZHbHRaU1V5TWlVelFURXlNQ1UzUkNVM1JBPT1cdTAwMjZpZD01ODA4YTg2NTBhZGNlYWVkN2ZhZjE1ZGJmMmM4MTk0NzZkYzZlNTU0NTUxNWQ5NzM2NDQzZDNmYjBkMjVlMzllXHUwMDI2RT01MkZIQVFPUCIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjR9/0bf2b00bb7f339b199c8b5bcf8793ce0ad57377cd8f722347a24fafccdb8c409&quot; class=&quot;logo-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; style=&quot;text-decoration: none !important; display: inline-block !important;&quot;>
+                                        <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751385510020_IQ_email-header_600x200_01JZ3BC4AKJ1Y6GG77GYWNW81A.png&quot; class=&quot;logo-image&quot; width=&quot;auto&quot; height=&quot;50&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; height: 50px !important; width: auto !important; max-width: 200px !important; display: block !important; margin: 0 auto !important; border: 0 !important;&quot;/>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Main Email Content Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-content&quot; style=&quot;color: black; border-collapse: collapse !important; mso-line-height-rule: exactly !important; padding: 32px 24px !important; background-color: #ffffff !important;&quot; bgcolor=&quot;#ffffff&quot;>
+                                    <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Hi there,</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>You invested 30 minutes completing your IQ assessment.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>It takes just 60 seconds to claim your results.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Inside your report you'll find:</strong></p>
+<ul>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your exact IQ score and global ranking</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your cognitive skills breakdown in 3 different intelligence domains</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Where your cognitive skills are useful in daily activities</li>
+</ul>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Don't let that work go to waste. Payment is secure, and you get instant access to your results.</p>
+
+
+<div class=&quot;button&quot; style=&quot;text-align: center; margin: 30px 0;&quot;>
+  <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_Y2lkPTZjMDYxZjkwLTg5YmYtNGNkOC05NDEwLTYyYzU3ZWE5ZWI2Ylx1MDAyNmVtYWlsPXByZXR0eWZsdWZmeWNvd0BnbWFpbC5jb21cblx1MDAyNnI9ZXlKeklqb3hNVElzSW5RaU9qRXlNSDA9XG5cdTAwMjZpPTg4OFxuXHUwMDI2dD0xMjBcblxuXHUwMDI2cXVpel9hbnN3ZXJzPU1UTTZZam8zT2tJNk1URjhNVFE2WWpvNE9rSTZNVE44TVRVNllqbzVPa0k2TW53eE5qcGlPakV3T2tVNk0zd3hOenBpT2pFeE9rUTZOSHd4T0RwaU9qRXlPa1E2TW53eE9UcGlPakV6T2tRNk1ud3lNRHBpT2pFME9rUTZNbnd5TVRwaU9qRTFPa1E2Tkh3eU1qcGlPakUyT2tRNk1ud3lNenBpT2pFM09rSTZNM3d5TkRwaU9qRTRPa0k2Tkh3eU5UcGlPakU1T2tJNk9Id3lOanBpT2pJd09rSTZNM3d5TnpwaU9qSXhPa0k2Tm53eU9EcGlPakl5T2tJNk1ud3lPVHBpT2pJek9rRTZNbnd6TURwaU9qSTBPa0U2TVROOE16RTZZam95TlRwQk9qTjhNekk2WWpveU5qcEJPalY4TXpNNllqb3lOenBET2pkOE16UTZZam95T0RwQ09qSjhNelU2WWpveU9UcEdPalY4TXpZNllqb3pNRHBDT2psOE16YzZZam96TVRwQ09qTT1cdTAwMjZ1dG1fc291cmNlPWVtYWlsXHUwMDI2dXRtX2NhbXBhaWduPXVzZXJfbGVmdF9jaGVja291dFx1MDAyNnV0bV9tZWRpdW09ZW1haWxfMTEiLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo2MTc3fQ/58749c03d0d67bf34863c84e8f98a71db4eb88807ce539d27c698d33ca1763db&quot; target=&quot;_blank&quot; style=&quot;background-color: #0d756e; color: #ffffff; text-decoration: none; padding: 12px 30px; font-size: 18px; border-radius: 6px; display: inline-block; font-weight: 500;&quot;>
+    Get My Results Now
+  </a>
+</div>
+
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Over 23,800 people claimed their results this week. Your complete cognitive analysis is waiting.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Best regards,<br/>
+The MyIQ Team</p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Email Footer Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-footer&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #fafafa !important; padding: 32px 24px !important; text-align: center !important; border-top: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#fafafa&quot; align=&quot;center&quot;>
+                                    <!-- Social Media Links -->
+                                    <div class=&quot;social-media-container&quot; style=&quot;margin-bottom: 24px !important;&quot;>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LmZhY2Vib29rLmNvbS9NeUlRYXBwIiwiaW50ZXJuYWwiOiJiY2U1MGFmMzEzZTA3MWYxY2FiODI0IiwibGlua19pZCI6MzUxfQ/c6be02eda3162b6b3e8e1a8fa6de13d527c0b839f90bdfe7f6777a9594fc2b85&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Connect with MyIQ on Facebook&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364369583_facebook-svgrepo-com_01JZ2Q6Z9ZK6SS5ZXSKRWD6Y0N.png&quot; alt=&quot;Facebook&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3Lmluc3RhZ3JhbS5jb20vbXlpcV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjozNTJ9/24b63527d0571be81fbe9ea02732cb6c188ef8a448939f61224634482c4ee331&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Instagram&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364520926_instagram-svgrepo-com-2_01JZ2QBK6XYBATMPHH4VQ6RDXG.png&quot; alt=&quot;Instagram&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8veC5jb20vTXlJUV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo4NjkyfQ/8f6588c684538c5e364609c0eb4c56b6ebee819d76f89e387f9288fececd2967&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on X&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751365076926_icons8-x-512_01JZ2QWJ2CJPGXC4T3YQ79HFRP.png&quot; alt=&quot;X (formerly Twitter)&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LnJlZGRpdC5jb20vci9NeUlRX09mZmljaWFsLyIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjMxMjV9/1df910b327aa2d0576a3510f96bd6d636cf46114dc7c1cc49040c22cfd132415&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Reddit&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1759966413003_icons8-reddit-64_01K732RGAA79XPHAK17YM72AFN.png&quot; alt=&quot;Reddit MyIQ&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                    </div>
+                                    
+                                    <!-- Company Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        © 2026 MyIQ. All rights reserved.<br/>
+                                        2093 Philadelphia Pike #3129, Claymont, DE 19703, United States
+                                    </p>
+                                    
+                                    <!-- Unsubscribe Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        You received this email because you subscribed to our updates. 
+                                        You can <a href=&quot;https://email.myiq.com/unsubscribe/dgS85QoAAPHKuCTwyrgkAZzaDDdoMhoRpbPnETsyRQ==&quot; class=&quot;unsubscribe-link&quot; style=&quot;color: #999999 !important; text-decoration: underline !important;&quot;>unsubscribe</a> anytime.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                    </div>
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+    
+    <!--[if mso | IE]>
+            </td>
+        </tr>
+    </table>
+    <![endif]-->
+
+<img src=&quot;https://email.myiq.com/e/o/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6YUREZG9NaG9ScGJQbkVUc3lSUT09In0=&quot; style=&quot;height: 1px !important; max-height: 1px !important; max-width: 1px !important; width: 1px !important; display: none !important;&quot; alt=&quot;&quot;/></body></html>"
+  ></div>
+</div>
+      <div class="arrow">
+        <div class="arrow-line"></div>
+        <div class="arrow-interval">1d</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-tip"></div>
+      </div>
+<div class="email-card" style="width:100%;">
+  <div class="card-meta">
+    <span class="card-num">#2</span>
+    <span class="card-date">11 Mar 2026, 23:19</span>
+  </div>
+  <div class="card-subject">Reveal your full cognitive blueprint</div>
+  <div class="card-from">myIQ</div>
+  <div
+    class="email-shadow-host"
+    style="margin-top:8px; border-radius:8px; overflow:hidden; border:1px solid #2a2a35; height:600px;"
+    data-html="<!DOCTYPE html><html lang=&quot;en&quot; xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;><head>
+    <meta charset=&quot;utf-8&quot;/>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;/>
+    <meta http-equiv=&quot;X-UA-Compatible&quot; content=&quot;IE=edge&quot;/>
+    <meta name=&quot;x-apple-disable-message-reformatting&quot;/>
+    <meta name=&quot;format-detection&quot; content=&quot;telephone=no,address=no,email=no,date=no,url=no&quot;/>
+    <meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;/>
+    <meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;/>
+    <title>Reveal your full cognitive blueprint</title>
+    
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    
+    <style type=&quot;text/css&quot;>
+.logo-link {
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+.social-media-link {
+  display: inline-block !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-color: #0d756e !important;
+  border-radius: 50% !important;
+  margin: 0 8px !important;
+  text-decoration: none !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  line-height: 40px !important;
+}
+.footer-link {
+  color: #0d756e !important;
+  text-decoration: underline !important;
+}
+.unsubscribe-link {
+  color: #999999 !important;
+  text-decoration: underline !important;
+}
+@media (prefers-color-scheme: dark) {
+  .email-container {
+    background-color: #1a1a1a !important;
+    border-color: #333333 !important;
+  }
+
+  .email-content {
+    background-color: #1a1a1a !important;
+  }
+
+  .content-heading,
+.content-paragraph,
+.content-list-item {
+    color: #ffffff !important;
+  }
+
+  .email-footer {
+    background-color: #2a2a2a !important;
+    border-color: #333333 !important;
+  }
+}
+@media only screen and (max-width: 600px) {
+  .email-wrapper {
+    padding: 10px 5px !important;
+  }
+
+  .email-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .email-header {
+    padding: 20px 16px !important;
+  }
+
+  .email-content {
+    padding: 24px 16px !important;
+  }
+
+  .content-heading {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+
+  .content-paragraph,
+.content-list-item {
+    font-size: 15px !important;
+  }
+
+  .cta-button {
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    width: auto !important;
+    display: inline-block !important;
+  }
+
+  .email-footer {
+    padding: 24px 16px !important;
+  }
+
+  .social-media-link {
+    margin: 0 6px !important;
+  }
+}
+@media only screen and (min-device-width: 375px) and (max-device-width: 413px) {
+  .email-container {
+    min-width: 375px !important;
+  }
+}
+</style>
+</head>
+
+<body class=&quot;body&quot; style=&quot;margin: 0 !important; padding: 0 !important; width: 100% !important; min-width: 100% !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; -webkit-font-smoothing: antialiased !important; font-family: Arial, Helvetica, sans-serif !important; background-color: white !important; color: #333333 !important; font-size: 16px !important; line-height: 1.6 !important; text-align: left !important;&quot;>
+    <!--[if mso | IE]>
+    <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;background-color: #f8f9fa;&quot;>
+        <tr>
+            <td>
+    <![endif]-->
+    
+    <div class=&quot;email-wrapper&quot; style=&quot;padding: 20px 10px !important; width: 100% !important;&quot;>
+        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;margin: 0 auto; max-width: 600px; border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+            <tbody><tr>
+                <td style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important;&quot;>
+                    <div class=&quot;email-container&quot; style=&quot;max-width: 600px !important; margin: 0 auto !important; background-color: #ffffff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; overflow: hidden !important;&quot;>
+                        <!-- Email Header Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-header&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #f8f9fa !important; padding: 10px 10px !important; text-align: center !important; border-bottom: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#f8f9fa&quot; align=&quot;center&quot;>
+                                    <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_dXNlcl90b2tlbj1KVGRDSlRJeWFXUWxNaklsTTBFbE1qSTJZekEyTVdZNU1DMDRPV0ptTFRSalpEZ3RPVFF4TUMwMk1tTTFOMlZoT1dWaU5tSWxNaklsTWtNbE1qSmxiV0ZwYkNVeU1pVXpRU1V5TW5CeVpYUjBlV1pzZFdabWVXTnZkeVUwTUdkdFlXbHNMbU52YlNVeU1pVXlReVV5TW5WelpYSnVZVzFsSlRJeUpUTkJKVEl5SlRJeUpUSkRKVEl5Y21WemRXeDBjeVV5TWlVelFTVTNRaVV5TW5WelpYSlRZMjl5WlNVeU1pVXpRVEV4TWlVeVF5VXlNbk53Wlc1MFZHbHRaU1V5TWlVelFURXlNQ1UzUkNVM1JBPT1cdTAwMjZpZD01ODA4YTg2NTBhZGNlYWVkN2ZhZjE1ZGJmMmM4MTk0NzZkYzZlNTU0NTUxNWQ5NzM2NDQzZDNmYjBkMjVlMzllXHUwMDI2RT01MkZIQVFPUCIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjR9/30b7823577d76d6717970ff9ab241893924036ac1ff57aea38650e5cb4cc149e&quot; class=&quot;logo-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; style=&quot;text-decoration: none !important; display: inline-block !important;&quot;>
+                                        <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751385510020_IQ_email-header_600x200_01JZ3BC4AKJ1Y6GG77GYWNW81A.png&quot; class=&quot;logo-image&quot; width=&quot;auto&quot; height=&quot;50&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; height: 50px !important; width: auto !important; max-width: 200px !important; display: block !important; margin: 0 auto !important; border: 0 !important;&quot;/>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Main Email Content Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-content&quot; style=&quot;color: black; border-collapse: collapse !important; mso-line-height-rule: exactly !important; padding: 32px 24px !important; background-color: #ffffff !important;&quot; bgcolor=&quot;#ffffff&quot;>
+                                    <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Hi there,</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>A blueprint shows you exactly how something is built: where the strengths are, where the weak points hide, and how all the pieces work together.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Your IQ results are the blueprint of your mind.</strong></p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>You spent 30 minutes completing your assessment. Your cognitive blueprint is ready: showing your exact IQ score, how you compare with others, and which of your cognitive skills are strongest (and which need work).</p>
+
+
+<div class=&quot;button&quot; style=&quot;text-align: center; margin: 30px 0;&quot;>
+  <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_Y2lkPTZjMDYxZjkwLTg5YmYtNGNkOC05NDEwLTYyYzU3ZWE5ZWI2Ylx1MDAyNmVtYWlsPXByZXR0eWZsdWZmeWNvd0BnbWFpbC5jb21cblx1MDAyNnI9ZXlKeklqb3hNVElzSW5RaU9qRXlNSDA9XG5cdTAwMjZpPTg4OFxuXHUwMDI2dD0xMjBcblxuXHUwMDI2cXVpel9hbnN3ZXJzPU1UTTZZam8zT2tJNk1URjhNVFE2WWpvNE9rSTZNVE44TVRVNllqbzVPa0k2TW53eE5qcGlPakV3T2tVNk0zd3hOenBpT2pFeE9rUTZOSHd4T0RwaU9qRXlPa1E2TW53eE9UcGlPakV6T2tRNk1ud3lNRHBpT2pFME9rUTZNbnd5TVRwaU9qRTFPa1E2Tkh3eU1qcGlPakUyT2tRNk1ud3lNenBpT2pFM09rSTZNM3d5TkRwaU9qRTRPa0k2Tkh3eU5UcGlPakU1T2tJNk9Id3lOanBpT2pJd09rSTZNM3d5TnpwaU9qSXhPa0k2Tm53eU9EcGlPakl5T2tJNk1ud3lPVHBpT2pJek9rRTZNbnd6TURwaU9qSTBPa0U2TVROOE16RTZZam95TlRwQk9qTjhNekk2WWpveU5qcEJPalY4TXpNNllqb3lOenBET2pkOE16UTZZam95T0RwQ09qSjhNelU2WWpveU9UcEdPalY4TXpZNllqb3pNRHBDT2psOE16YzZZam96TVRwQ09qTT1cdTAwMjZ1dG1fc291cmNlPWVtYWlsXHUwMDI2dXRtX2NhbXBhaWduPXVzZXJfbGVmdF9jaGVja291dFx1MDAyNnV0bV9tZWRpdW09ZW1haWxfMTIiLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo2MTg0fQ/91ee557fb1ee27962f9c773215e79eca4a892a1e01baf647ce3181f97d0262f9&quot; target=&quot;_blank&quot; style=&quot;background-color: #0d756e; color: #ffffff; text-decoration: none; padding: 12px 30px; font-size: 18px; border-radius: 6px; display: inline-block; font-weight: 500;&quot;>
+    See My IQ Report
+  </a>
+</div>
+
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Here's something that 80% of people don't know:</strong></p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Your IQ score</strong> shows <em>what</em> your brain is capable of: how quickly you solve problems.</p>
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Your cognitive strengths</strong> reveal <em>where</em> your strengths lie: memory capacity, pattern recognition, and reasoning skills.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Claim your IQ report to discover both your IQ score and cognitive skills.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Best regards,<br/>
+The MyIQ Team</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><em>P.S. Your IQ results are still waiting, but not for long. In a couple of days, we'll delete your results if you don't claim them.</em></p>
+
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Email Footer Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-footer&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #fafafa !important; padding: 32px 24px !important; text-align: center !important; border-top: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#fafafa&quot; align=&quot;center&quot;>
+                                    <!-- Social Media Links -->
+                                    <div class=&quot;social-media-container&quot; style=&quot;margin-bottom: 24px !important;&quot;>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LmZhY2Vib29rLmNvbS9NeUlRYXBwIiwiaW50ZXJuYWwiOiJiY2U1MGFmMzEzZTA3MWYxY2FiODI0IiwibGlua19pZCI6MzUxfQ/10f5ad2a88f0b8ebb47b5a98e5235ea33c93db1ff2849c96162636254051d0c0&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Connect with MyIQ on Facebook&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364369583_facebook-svgrepo-com_01JZ2Q6Z9ZK6SS5ZXSKRWD6Y0N.png&quot; alt=&quot;Facebook&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3Lmluc3RhZ3JhbS5jb20vbXlpcV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjozNTJ9/16a70ad732fd0fbb800575b55dac5d45fb0a24f22fdbc02cfb1a67e44344ab06&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Instagram&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364520926_instagram-svgrepo-com-2_01JZ2QBK6XYBATMPHH4VQ6RDXG.png&quot; alt=&quot;Instagram&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8veC5jb20vTXlJUV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo4NjkyfQ/f95a97837c68172d24262bec4af6a8d00d032678b246c65434835cdf18866c85&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on X&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751365076926_icons8-x-512_01JZ2QWJ2CJPGXC4T3YQ79HFRP.png&quot; alt=&quot;X (formerly Twitter)&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LnJlZGRpdC5jb20vci9NeUlRX09mZmljaWFsLyIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjMxMjV9/76188349248e74cd97cbb5014b0905673494486674c607cf08cb507e31dde377&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Reddit&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1759966413003_icons8-reddit-64_01K732RGAA79XPHAK17YM72AFN.png&quot; alt=&quot;Reddit MyIQ&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                    </div>
+                                    
+                                    <!-- Company Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        © 2026 MyIQ. All rights reserved.<br/>
+                                        2093 Philadelphia Pike #3129, Claymont, DE 19703, United States
+                                    </p>
+                                    
+                                    <!-- Unsubscribe Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        You received this email because you subscribed to our updates. 
+                                        You can <a href=&quot;https://email.myiq.com/unsubscribe/dgS85QoAAPHKuCTwyrgkAZzfMpnodNc5aULNtk9xIg==&quot; class=&quot;unsubscribe-link&quot; style=&quot;color: #999999 !important; text-decoration: underline !important;&quot;>unsubscribe</a> anytime.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                    </div>
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+    
+    <!--[if mso | IE]>
+            </td>
+        </tr>
+    </table>
+    <![endif]-->
+
+<img src=&quot;https://email.myiq.com/e/o/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6Zk1wbm9kTmM1YVVMTnRrOXhJZz09In0=&quot; style=&quot;height: 1px !important; max-height: 1px !important; max-width: 1px !important; width: 1px !important; display: none !important;&quot; alt=&quot;&quot;/></body></html>"
+  ></div>
+</div>
+      <div class="arrow">
+        <div class="arrow-line"></div>
+        <div class="arrow-interval">1d</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-tip"></div>
+      </div>
+<div class="email-card" style="width:100%;">
+  <div class="card-meta">
+    <span class="card-num">#3</span>
+    <span class="card-date">12 Mar 2026, 23:19</span>
+  </div>
+  <div class="card-subject">Final 2 days: Your certificate gets deleted</div>
+  <div class="card-from">myIQ</div>
+  <div
+    class="email-shadow-host"
+    style="margin-top:8px; border-radius:8px; overflow:hidden; border:1px solid #2a2a35; height:600px;"
+    data-html="<!DOCTYPE html><html lang=&quot;en&quot; xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;><head>
+    <meta charset=&quot;utf-8&quot;/>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;/>
+    <meta http-equiv=&quot;X-UA-Compatible&quot; content=&quot;IE=edge&quot;/>
+    <meta name=&quot;x-apple-disable-message-reformatting&quot;/>
+    <meta name=&quot;format-detection&quot; content=&quot;telephone=no,address=no,email=no,date=no,url=no&quot;/>
+    <meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;/>
+    <meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;/>
+    <title>Final 2 days: Your certificate gets deleted</title>
+    
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    
+    <style type=&quot;text/css&quot;>
+.logo-link {
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+.social-media-link {
+  display: inline-block !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-color: #0d756e !important;
+  border-radius: 50% !important;
+  margin: 0 8px !important;
+  text-decoration: none !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  line-height: 40px !important;
+}
+.footer-link {
+  color: #0d756e !important;
+  text-decoration: underline !important;
+}
+.unsubscribe-link {
+  color: #999999 !important;
+  text-decoration: underline !important;
+}
+@media (prefers-color-scheme: dark) {
+  .email-container {
+    background-color: #1a1a1a !important;
+    border-color: #333333 !important;
+  }
+
+  .email-content {
+    background-color: #1a1a1a !important;
+  }
+
+  .content-heading,
+.content-paragraph,
+.content-list-item {
+    color: #ffffff !important;
+  }
+
+  .email-footer {
+    background-color: #2a2a2a !important;
+    border-color: #333333 !important;
+  }
+}
+@media only screen and (max-width: 600px) {
+  .email-wrapper {
+    padding: 10px 5px !important;
+  }
+
+  .email-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .email-header {
+    padding: 20px 16px !important;
+  }
+
+  .email-content {
+    padding: 24px 16px !important;
+  }
+
+  .content-heading {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+
+  .content-paragraph,
+.content-list-item {
+    font-size: 15px !important;
+  }
+
+  .cta-button {
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    width: auto !important;
+    display: inline-block !important;
+  }
+
+  .email-footer {
+    padding: 24px 16px !important;
+  }
+
+  .social-media-link {
+    margin: 0 6px !important;
+  }
+}
+@media only screen and (min-device-width: 375px) and (max-device-width: 413px) {
+  .email-container {
+    min-width: 375px !important;
+  }
+}
+</style>
+</head>
+
+<body class=&quot;body&quot; style=&quot;margin: 0 !important; padding: 0 !important; width: 100% !important; min-width: 100% !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; -webkit-font-smoothing: antialiased !important; font-family: Arial, Helvetica, sans-serif !important; background-color: white !important; color: #333333 !important; font-size: 16px !important; line-height: 1.6 !important; text-align: left !important;&quot;>
+    <!--[if mso | IE]>
+    <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;background-color: #f8f9fa;&quot;>
+        <tr>
+            <td>
+    <![endif]-->
+    
+    <div class=&quot;email-wrapper&quot; style=&quot;padding: 20px 10px !important; width: 100% !important;&quot;>
+        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;margin: 0 auto; max-width: 600px; border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+            <tbody><tr>
+                <td style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important;&quot;>
+                    <div class=&quot;email-container&quot; style=&quot;max-width: 600px !important; margin: 0 auto !important; background-color: #ffffff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; overflow: hidden !important;&quot;>
+                        <!-- Email Header Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-header&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #f8f9fa !important; padding: 10px 10px !important; text-align: center !important; border-bottom: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#f8f9fa&quot; align=&quot;center&quot;>
+                                    <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_dXNlcl90b2tlbj1KVGRDSlRJeWFXUWxNaklsTTBFbE1qSTJZekEyTVdZNU1DMDRPV0ptTFRSalpEZ3RPVFF4TUMwMk1tTTFOMlZoT1dWaU5tSWxNaklsTWtNbE1qSmxiV0ZwYkNVeU1pVXpRU1V5TW5CeVpYUjBlV1pzZFdabWVXTnZkeVUwTUdkdFlXbHNMbU52YlNVeU1pVXlReVV5TW5WelpYSnVZVzFsSlRJeUpUTkJKVEl5SlRJeUpUSkRKVEl5Y21WemRXeDBjeVV5TWlVelFTVTNRaVV5TW5WelpYSlRZMjl5WlNVeU1pVXpRVEV4TWlVeVF5VXlNbk53Wlc1MFZHbHRaU1V5TWlVelFURXlNQ1UzUkNVM1JBPT1cdTAwMjZpZD01ODA4YTg2NTBhZGNlYWVkN2ZhZjE1ZGJmMmM4MTk0NzZkYzZlNTU0NTUxNWQ5NzM2NDQzZDNmYjBkMjVlMzllXHUwMDI2RT01MkZIQVFPUCIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjR9/5910af49ba3959070367400fbbdeb03f16ca0295bae2d4518a5875a0d7e3dffa&quot; class=&quot;logo-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; style=&quot;text-decoration: none !important; display: inline-block !important;&quot;>
+                                        <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751385510020_IQ_email-header_600x200_01JZ3BC4AKJ1Y6GG77GYWNW81A.png&quot; class=&quot;logo-image&quot; width=&quot;auto&quot; height=&quot;50&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; height: 50px !important; width: auto !important; max-width: 200px !important; display: block !important; margin: 0 auto !important; border: 0 !important;&quot;/>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Main Email Content Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-content&quot; style=&quot;color: black; border-collapse: collapse !important; mso-line-height-rule: exactly !important; padding: 32px 24px !important; background-color: #ffffff !important;&quot; bgcolor=&quot;#ffffff&quot;>
+                                    <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Hey there,</p>
+
+ <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Despite our previous messages, we noticed you still haven't claimed your IQ certificate and personalized cognitive report.
+Per our data retention policy, <strong>unclaimed results will expire in 48 hours.</strong> </p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>What Happens When Your Results Expire:</strong></p>
+<ul>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your test responses will be removed from our system</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your personalized certificate will no longer be available</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your cognitive profile and strengths analysis will be lost</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Your benchmark comparisons to global averages will be reset</li>
+</ul>
+
+
+<div class=&quot;button&quot; style=&quot;text-align: center; margin: 30px 0;&quot;>
+  <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_Y2lkPTZjMDYxZjkwLTg5YmYtNGNkOC05NDEwLTYyYzU3ZWE5ZWI2Ylx1MDAyNmVtYWlsPXByZXR0eWZsdWZmeWNvd0BnbWFpbC5jb21cblx1MDAyNnI9ZXlKeklqb3hNVElzSW5RaU9qRXlNSDA9XG5cdTAwMjZpPTg4OFxuXHUwMDI2dD0xMjBcblxuXHUwMDI2cXVpel9hbnN3ZXJzPU1UTTZZam8zT2tJNk1URjhNVFE2WWpvNE9rSTZNVE44TVRVNllqbzVPa0k2TW53eE5qcGlPakV3T2tVNk0zd3hOenBpT2pFeE9rUTZOSHd4T0RwaU9qRXlPa1E2TW53eE9UcGlPakV6T2tRNk1ud3lNRHBpT2pFME9rUTZNbnd5TVRwaU9qRTFPa1E2Tkh3eU1qcGlPakUyT2tRNk1ud3lNenBpT2pFM09rSTZNM3d5TkRwaU9qRTRPa0k2Tkh3eU5UcGlPakU1T2tJNk9Id3lOanBpT2pJd09rSTZNM3d5TnpwaU9qSXhPa0k2Tm53eU9EcGlPakl5T2tJNk1ud3lPVHBpT2pJek9rRTZNbnd6TURwaU9qSTBPa0U2TVROOE16RTZZam95TlRwQk9qTjhNekk2WWpveU5qcEJPalY4TXpNNllqb3lOenBET2pkOE16UTZZam95T0RwQ09qSjhNelU2WWpveU9UcEdPalY4TXpZNllqb3pNRHBDT2psOE16YzZZam96TVRwQ09qTT1cdTAwMjZ1dG1fc291cmNlPWVtYWlsXHUwMDI2dXRtX2NhbXBhaWduPXVzZXJfbGVmdF9jaGVja291dFx1MDAyNnV0bV9tZWRpdW09ZW1haWxfMTMiLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo2MTk4fQ/11e56da41cd72b77f0081656582f09eefe9efdade16623e00b9c78cce18e0e18&quot; target=&quot;_blank&quot; style=&quot;background-color: #0d756e; color: #ffffff; text-decoration: none; padding: 12px 30px; font-size: 18px; border-radius: 6px; display: inline-block; font-weight: 500;&quot;>
+    Claim Your Results Now
+  </a>
+</div>
+
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Why MyIQ users value their results:</strong></p>
+<ul>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Validity:</strong> Our assessment is built on established cognitive science principles</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Personalized Insights:</strong> Discover your unique pattern of strengths across multiple intelligence domains</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Special training:</strong> Access games and training exercises to develop your cognitive skills</li>
+</ul>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>You invested 30 minutes completing this assessment. Don't let that work disappear.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>In 2 days, this opportunity disappears.<br/>
+To your cognitive success,<br/>
+The MyIQ Team </p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><em>P.S. Over 210,000 people claimed their results this week. Don't be part of the 3% who let theirs expire. Your IQ score, cognitive analysis, and certificate are waiting.</em></p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Email Footer Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-footer&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #fafafa !important; padding: 32px 24px !important; text-align: center !important; border-top: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#fafafa&quot; align=&quot;center&quot;>
+                                    <!-- Social Media Links -->
+                                    <div class=&quot;social-media-container&quot; style=&quot;margin-bottom: 24px !important;&quot;>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LmZhY2Vib29rLmNvbS9NeUlRYXBwIiwiaW50ZXJuYWwiOiJiY2U1MGFmMzEzZTA3MWYxY2FiODI0IiwibGlua19pZCI6MzUxfQ/5265c8c287816caa128a1069adf195f9fcaae60bb8842cbb15bbb336493f69c0&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Connect with MyIQ on Facebook&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364369583_facebook-svgrepo-com_01JZ2Q6Z9ZK6SS5ZXSKRWD6Y0N.png&quot; alt=&quot;Facebook&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3Lmluc3RhZ3JhbS5jb20vbXlpcV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjozNTJ9/dee8372212728412e37e6d0b02793d96e567164618834dbc02a3bfab968f1539&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Instagram&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364520926_instagram-svgrepo-com-2_01JZ2QBK6XYBATMPHH4VQ6RDXG.png&quot; alt=&quot;Instagram&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8veC5jb20vTXlJUV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo4NjkyfQ/f828a6c34c390c2f62f7d43fbbac67ae021fb361d162454aa0f4e5fc417989fe&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on X&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751365076926_icons8-x-512_01JZ2QWJ2CJPGXC4T3YQ79HFRP.png&quot; alt=&quot;X (formerly Twitter)&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LnJlZGRpdC5jb20vci9NeUlRX09mZmljaWFsLyIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjMxMjV9/8b8856816f638d180aa6c24f024d06a52d88bcfe68ee50ab36526d85a301c55c&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Reddit&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1759966413003_icons8-reddit-64_01K732RGAA79XPHAK17YM72AFN.png&quot; alt=&quot;Reddit MyIQ&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                    </div>
+                                    
+                                    <!-- Company Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        © 2026 MyIQ. All rights reserved.<br/>
+                                        2093 Philadelphia Pike #3129, Claymont, DE 19703, United States
+                                    </p>
+                                    
+                                    <!-- Unsubscribe Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        You received this email because you subscribed to our updates. 
+                                        You can <a href=&quot;https://email.myiq.com/unsubscribe/dgS85QoAAPHKuCTwyrgkAZzkWQDuYSmInm5zLbQMKA==&quot; class=&quot;unsubscribe-link&quot; style=&quot;color: #999999 !important; text-decoration: underline !important;&quot;>unsubscribe</a> anytime.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                    </div>
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+    
+    <!--[if mso | IE]>
+            </td>
+        </tr>
+    </table>
+    <![endif]-->
+
+<img src=&quot;https://email.myiq.com/e/o/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6a1dRRHVZU21Jbm01ekxiUU1LQT09In0=&quot; style=&quot;height: 1px !important; max-height: 1px !important; max-width: 1px !important; width: 1px !important; display: none !important;&quot; alt=&quot;&quot;/></body></html>"
+  ></div>
+</div>
+      <div class="arrow">
+        <div class="arrow-line"></div>
+        <div class="arrow-interval">1d</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-tip"></div>
+      </div>
+<div class="email-card" style="width:100%;">
+  <div class="card-meta">
+    <span class="card-num">#4</span>
+    <span class="card-date">13 Mar 2026, 23:19</span>
+  </div>
+  <div class="card-subject">Your IQ Results: Final 12 Hours Remaining</div>
+  <div class="card-from">myIQ</div>
+  <div
+    class="email-shadow-host"
+    style="margin-top:8px; border-radius:8px; overflow:hidden; border:1px solid #2a2a35; height:600px;"
+    data-html="<!DOCTYPE html><html lang=&quot;en&quot; xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;><head>
+    <meta charset=&quot;utf-8&quot;/>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;/>
+    <meta http-equiv=&quot;X-UA-Compatible&quot; content=&quot;IE=edge&quot;/>
+    <meta name=&quot;x-apple-disable-message-reformatting&quot;/>
+    <meta name=&quot;format-detection&quot; content=&quot;telephone=no,address=no,email=no,date=no,url=no&quot;/>
+    <meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;/>
+    <meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;/>
+    <title>Your IQ Results: Final 12 Hours Remaining</title>
+    
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    
+    <style type=&quot;text/css&quot;>
+.logo-link {
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+.social-media-link {
+  display: inline-block !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-color: #0d756e !important;
+  border-radius: 50% !important;
+  margin: 0 8px !important;
+  text-decoration: none !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  line-height: 40px !important;
+}
+.footer-link {
+  color: #0d756e !important;
+  text-decoration: underline !important;
+}
+.unsubscribe-link {
+  color: #999999 !important;
+  text-decoration: underline !important;
+}
+@media (prefers-color-scheme: dark) {
+  .email-container {
+    background-color: #1a1a1a !important;
+    border-color: #333333 !important;
+  }
+
+  .email-content {
+    background-color: #1a1a1a !important;
+  }
+
+  .content-heading,
+.content-paragraph,
+.content-list-item {
+    color: #ffffff !important;
+  }
+
+  .email-footer {
+    background-color: #2a2a2a !important;
+    border-color: #333333 !important;
+  }
+}
+@media only screen and (max-width: 600px) {
+  .email-wrapper {
+    padding: 10px 5px !important;
+  }
+
+  .email-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .email-header {
+    padding: 20px 16px !important;
+  }
+
+  .email-content {
+    padding: 24px 16px !important;
+  }
+
+  .content-heading {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+
+  .content-paragraph,
+.content-list-item {
+    font-size: 15px !important;
+  }
+
+  .cta-button {
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    width: auto !important;
+    display: inline-block !important;
+  }
+
+  .email-footer {
+    padding: 24px 16px !important;
+  }
+
+  .social-media-link {
+    margin: 0 6px !important;
+  }
+}
+@media only screen and (min-device-width: 375px) and (max-device-width: 413px) {
+  .email-container {
+    min-width: 375px !important;
+  }
+}
+</style>
+</head>
+
+<body class=&quot;body&quot; style=&quot;margin: 0 !important; padding: 0 !important; width: 100% !important; min-width: 100% !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; -webkit-font-smoothing: antialiased !important; font-family: Arial, Helvetica, sans-serif !important; background-color: white !important; color: #333333 !important; font-size: 16px !important; line-height: 1.6 !important; text-align: left !important;&quot;>
+    <!--[if mso | IE]>
+    <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;background-color: #f8f9fa;&quot;>
+        <tr>
+            <td>
+    <![endif]-->
+    
+    <div class=&quot;email-wrapper&quot; style=&quot;padding: 20px 10px !important; width: 100% !important;&quot;>
+        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;margin: 0 auto; max-width: 600px; border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+            <tbody><tr>
+                <td style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important;&quot;>
+                    <div class=&quot;email-container&quot; style=&quot;max-width: 600px !important; margin: 0 auto !important; background-color: #ffffff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; overflow: hidden !important;&quot;>
+                        <!-- Email Header Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-header&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #f8f9fa !important; padding: 10px 10px !important; text-align: center !important; border-bottom: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#f8f9fa&quot; align=&quot;center&quot;>
+                                    <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_dXNlcl90b2tlbj1KVGRDSlRJeWFXUWxNaklsTTBFbE1qSTJZekEyTVdZNU1DMDRPV0ptTFRSalpEZ3RPVFF4TUMwMk1tTTFOMlZoT1dWaU5tSWxNaklsTWtNbE1qSmxiV0ZwYkNVeU1pVXpRU1V5TW5CeVpYUjBlV1pzZFdabWVXTnZkeVUwTUdkdFlXbHNMbU52YlNVeU1pVXlReVV5TW5WelpYSnVZVzFsSlRJeUpUTkJKVEl5SlRJeUpUSkRKVEl5Y21WemRXeDBjeVV5TWlVelFTVTNRaVV5TW5WelpYSlRZMjl5WlNVeU1pVXpRVEV4TWlVeVF5VXlNbk53Wlc1MFZHbHRaU1V5TWlVelFURXlNQ1UzUkNVM1JBPT1cdTAwMjZpZD01ODA4YTg2NTBhZGNlYWVkN2ZhZjE1ZGJmMmM4MTk0NzZkYzZlNTU0NTUxNWQ5NzM2NDQzZDNmYjBkMjVlMzllXHUwMDI2RT01MkZIQVFPUCIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjR9/4498f6fc995e784b0cd3c5de7cbaa0835b428109bfd351edd61934c313e37f6c&quot; class=&quot;logo-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; style=&quot;text-decoration: none !important; display: inline-block !important;&quot;>
+                                        <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751385510020_IQ_email-header_600x200_01JZ3BC4AKJ1Y6GG77GYWNW81A.png&quot; class=&quot;logo-image&quot; width=&quot;auto&quot; height=&quot;50&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; height: 50px !important; width: auto !important; max-width: 200px !important; display: block !important; margin: 0 auto !important; border: 0 !important;&quot;/>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Main Email Content Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-content&quot; style=&quot;color: black; border-collapse: collapse !important; mso-line-height-rule: exactly !important; padding: 32px 24px !important; background-color: #ffffff !important;&quot; bgcolor=&quot;#ffffff&quot;>
+                                    <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Hey there,</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>
+  We've detected that your personalized IQ assessment results are still unclaimed.
+  Our system is showing this is your second-to-last notification before permanent deletion.
+</p>
+
+<p style=&quot;color: rgba(255, 0, 0, 0.74); display: block !important; margin: 13px 0 !important;&quot;><strong>Only 12 hours remain before your results are permanently erased.</strong></p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>
+  Did you know? Only 3% of our test-takers let their results expire.
+  Those who unlock their results report significant benefits:
+</p>
+
+<ul>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Career Advancement:</strong> &#34;Understanding my cognitive profile helped me leverage my analytical strengths in job interviews. I landed a position with a 28% higher salary.&#34; – Michael T.</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Educational Optimization:</strong> &#34;I restructured my study approach based on my cognitive profile and improved my academic performance by focusing on my natural learning patterns.&#34; – Sarah K.</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;><strong>Personal Growth:</strong> &#34;The training exercises tailored to my specific profile helped me improve mental processing speed by 24% in just 8 weeks.&#34; – James L.</li>
+</ul>
+
+
+<div class=&quot;button&quot; style=&quot;text-align: center; margin: 30px 0;&quot;>
+  <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_Y2lkPTZjMDYxZjkwLTg5YmYtNGNkOC05NDEwLTYyYzU3ZWE5ZWI2Ylx1MDAyNmVtYWlsPXByZXR0eWZsdWZmeWNvd0BnbWFpbC5jb21cblx1MDAyNnI9ZXlKeklqb3hNVElzSW5RaU9qRXlNSDA9XG5cdTAwMjZpPTg4OFxuXHUwMDI2dD0xMjBcblxuXHUwMDI2cXVpel9hbnN3ZXJzPU1UTTZZam8zT2tJNk1URjhNVFE2WWpvNE9rSTZNVE44TVRVNllqbzVPa0k2TW53eE5qcGlPakV3T2tVNk0zd3hOenBpT2pFeE9rUTZOSHd4T0RwaU9qRXlPa1E2TW53eE9UcGlPakV6T2tRNk1ud3lNRHBpT2pFME9rUTZNbnd5TVRwaU9qRTFPa1E2Tkh3eU1qcGlPakUyT2tRNk1ud3lNenBpT2pFM09rSTZNM3d5TkRwaU9qRTRPa0k2Tkh3eU5UcGlPakU1T2tJNk9Id3lOanBpT2pJd09rSTZNM3d5TnpwaU9qSXhPa0k2Tm53eU9EcGlPakl5T2tJNk1ud3lPVHBpT2pJek9rRTZNbnd6TURwaU9qSTBPa0U2TVROOE16RTZZam95TlRwQk9qTjhNekk2WWpveU5qcEJPalY4TXpNNllqb3lOenBET2pkOE16UTZZam95T0RwQ09qSjhNelU2WWpveU9UcEdPalY4TXpZNllqb3pNRHBDT2psOE16YzZZam96TVRwQ09qTT1cdTAwMjZ1dG1fc291cmNlPWVtYWlsXHUwMDI2dXRtX2NhbXBhaWduPXVzZXJfbGVmdF9jaGVja291dFx1MDAyNnV0bV9tZWRpdW09ZW1haWxfMTQiLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo2MjAwfQ/17a639db108ed5f2d3e1bd9c9109fe05810d956bb847e282738a8c687f9d6b89&quot; target=&quot;_blank&quot; style=&quot;background-color: #0d756e; color: #ffffff; text-decoration: none; padding: 12px 30px; font-size: 18px; border-radius: 6px; display: inline-block; font-weight: 500;&quot;>
+    Access My Results
+  </a>
+</div>
+
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>What makes your MyIQ results irreplaceable:</strong></p>
+<ul>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Proprietary algorithm comparing your responses against 12.7 million profiles</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Personalized cognitive fingerprint across many distinct intelligence domains</li>
+  <li style=&quot;margin-bottom: 5px !important;&quot;>Custom-tailored development plan based on your specific neural patterns</li>
+</ul>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Don't join the 3% who miss out on their cognitive potential.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>
+  Tomorrow, this opportunity disappears.<br/>
+  To your cognitive success,<br/>
+  The MyIQ Team
+</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>
+  <em>P.S. After tonight's deletion, you would need to complete the entire 30-question assessment again to generate new results. Save your work now with one simple click.</em>
+</p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Email Footer Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-footer&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #fafafa !important; padding: 32px 24px !important; text-align: center !important; border-top: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#fafafa&quot; align=&quot;center&quot;>
+                                    <!-- Social Media Links -->
+                                    <div class=&quot;social-media-container&quot; style=&quot;margin-bottom: 24px !important;&quot;>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LmZhY2Vib29rLmNvbS9NeUlRYXBwIiwiaW50ZXJuYWwiOiJiY2U1MGFmMzEzZTA3MWYxY2FiODI0IiwibGlua19pZCI6MzUxfQ/2cbe1a753653bbafdef8abd253c938ece81075267fd48b8fd34521875d4b3c6e&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Connect with MyIQ on Facebook&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364369583_facebook-svgrepo-com_01JZ2Q6Z9ZK6SS5ZXSKRWD6Y0N.png&quot; alt=&quot;Facebook&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3Lmluc3RhZ3JhbS5jb20vbXlpcV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjozNTJ9/ecd1e8997b615badba90668126de6218426491170dfcb7f0f14650366c08b41b&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Instagram&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364520926_instagram-svgrepo-com-2_01JZ2QBK6XYBATMPHH4VQ6RDXG.png&quot; alt=&quot;Instagram&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8veC5jb20vTXlJUV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo4NjkyfQ/7a80e4e724a051bf83903599f74d04fbf3237ebecfa77f07c2ffffde5ab156d3&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on X&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751365076926_icons8-x-512_01JZ2QWJ2CJPGXC4T3YQ79HFRP.png&quot; alt=&quot;X (formerly Twitter)&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LnJlZGRpdC5jb20vci9NeUlRX09mZmljaWFsLyIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjMxMjV9/e25d577af912c18551e6d5f71c6ee35cec5e0907a2cc8d40ece1bd84ba42a459&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Reddit&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1759966413003_icons8-reddit-64_01K732RGAA79XPHAK17YM72AFN.png&quot; alt=&quot;Reddit MyIQ&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                    </div>
+                                    
+                                    <!-- Company Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        © 2026 MyIQ. All rights reserved.<br/>
+                                        2093 Philadelphia Pike #3129, Claymont, DE 19703, United States
+                                    </p>
+                                    
+                                    <!-- Unsubscribe Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        You received this email because you subscribed to our updates. 
+                                        You can <a href=&quot;https://email.myiq.com/unsubscribe/dgS85QoAAPHKuCTwyrgkAZzpf2ZjHv5R0rtYLAUP3w==&quot; class=&quot;unsubscribe-link&quot; style=&quot;color: #999999 !important; text-decoration: underline !important;&quot;>unsubscribe</a> anytime.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                    </div>
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+    
+    <!--[if mso | IE]>
+            </td>
+        </tr>
+    </table>
+    <![endif]-->
+
+<img src=&quot;https://email.myiq.com/e/o/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6cGYyWmpIdjVSMHJ0WUxBVVAzdz09In0=&quot; style=&quot;height: 1px !important; max-height: 1px !important; max-width: 1px !important; width: 1px !important; display: none !important;&quot; alt=&quot;&quot;/></body></html>"
+  ></div>
+</div>
+      <div class="arrow">
+        <div class="arrow-line"></div>
+        <div class="arrow-interval">1d</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-tip"></div>
+      </div>
+<div class="email-card new" style="width:100%;">
+  <div class="card-meta">
+    <span class="card-num">#5 <span class="new-badge">new</span></span>
+    <span class="card-date">14 Mar 2026, 23:19</span>
+  </div>
+  <div class="card-subject">Deleting your IQ score in 2 hours</div>
+  <div class="card-from">myIQ</div>
+  <div
+    class="email-shadow-host"
+    style="margin-top:8px; border-radius:8px; overflow:hidden; border:1px solid #2a2a35; height:600px;"
+    data-html="<!DOCTYPE html><html lang=&quot;en&quot; xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xmlns:v=&quot;urn:schemas-microsoft-com:vml&quot; xmlns:o=&quot;urn:schemas-microsoft-com:office:office&quot;><head>
+    <meta charset=&quot;utf-8&quot;/>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;/>
+    <meta http-equiv=&quot;X-UA-Compatible&quot; content=&quot;IE=edge&quot;/>
+    <meta name=&quot;x-apple-disable-message-reformatting&quot;/>
+    <meta name=&quot;format-detection&quot; content=&quot;telephone=no,address=no,email=no,date=no,url=no&quot;/>
+    <meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;/>
+    <meta name=&quot;supported-color-schemes&quot; content=&quot;light dark&quot;/>
+    <title>Deleting your IQ score in 2 hours</title>
+    
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    
+    <style type=&quot;text/css&quot;>
+.logo-link {
+  text-decoration: none !important;
+  display: inline-block !important;
+}
+.social-media-link {
+  display: inline-block !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-color: #0d756e !important;
+  border-radius: 50% !important;
+  margin: 0 8px !important;
+  text-decoration: none !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  line-height: 40px !important;
+}
+.footer-link {
+  color: #0d756e !important;
+  text-decoration: underline !important;
+}
+.unsubscribe-link {
+  color: #999999 !important;
+  text-decoration: underline !important;
+}
+@media (prefers-color-scheme: dark) {
+  .email-container {
+    background-color: #1a1a1a !important;
+    border-color: #333333 !important;
+  }
+
+  .email-content {
+    background-color: #1a1a1a !important;
+  }
+
+  .content-heading,
+.content-paragraph,
+.content-list-item {
+    color: #ffffff !important;
+  }
+
+  .email-footer {
+    background-color: #2a2a2a !important;
+    border-color: #333333 !important;
+  }
+}
+@media only screen and (max-width: 600px) {
+  .email-wrapper {
+    padding: 10px 5px !important;
+  }
+
+  .email-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .email-header {
+    padding: 20px 16px !important;
+  }
+
+  .email-content {
+    padding: 24px 16px !important;
+  }
+
+  .content-heading {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+
+  .content-paragraph,
+.content-list-item {
+    font-size: 15px !important;
+  }
+
+  .cta-button {
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    width: auto !important;
+    display: inline-block !important;
+  }
+
+  .email-footer {
+    padding: 24px 16px !important;
+  }
+
+  .social-media-link {
+    margin: 0 6px !important;
+  }
+}
+@media only screen and (min-device-width: 375px) and (max-device-width: 413px) {
+  .email-container {
+    min-width: 375px !important;
+  }
+}
+</style>
+</head>
+
+<body class=&quot;body&quot; style=&quot;margin: 0 !important; padding: 0 !important; width: 100% !important; min-width: 100% !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; -webkit-font-smoothing: antialiased !important; font-family: Arial, Helvetica, sans-serif !important; background-color: white !important; color: #333333 !important; font-size: 16px !important; line-height: 1.6 !important; text-align: left !important;&quot;>
+    <!--[if mso | IE]>
+    <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;background-color: #f8f9fa;&quot;>
+        <tr>
+            <td>
+    <![endif]-->
+    
+    <div class=&quot;email-wrapper&quot; style=&quot;padding: 20px 10px !important; width: 100% !important;&quot;>
+        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;margin: 0 auto; max-width: 600px; border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+            <tbody><tr>
+                <td style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important;&quot;>
+                    <div class=&quot;email-container&quot; style=&quot;max-width: 600px !important; margin: 0 auto !important; background-color: #ffffff !important; border: 1px solid #e0e0e0 !important; border-radius: 8px !important; overflow: hidden !important;&quot;>
+                        <!-- Email Header Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-header&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #f8f9fa !important; padding: 10px 10px !important; text-align: center !important; border-bottom: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#f8f9fa&quot; align=&quot;center&quot;>
+                                    <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_dXNlcl90b2tlbj1KVGRDSlRJeWFXUWxNaklsTTBFbE1qSTJZekEyTVdZNU1DMDRPV0ptTFRSalpEZ3RPVFF4TUMwMk1tTTFOMlZoT1dWaU5tSWxNaklsTWtNbE1qSmxiV0ZwYkNVeU1pVXpRU1V5TW5CeVpYUjBlV1pzZFdabWVXTnZkeVUwTUdkdFlXbHNMbU52YlNVeU1pVXlReVV5TW5WelpYSnVZVzFsSlRJeUpUTkJKVEl5SlRJeUpUSkRKVEl5Y21WemRXeDBjeVV5TWlVelFTVTNRaVV5TW5WelpYSlRZMjl5WlNVeU1pVXpRVEV4TWlVeVF5VXlNbk53Wlc1MFZHbHRaU1V5TWlVelFURXlNQ1UzUkNVM1JBPT1cdTAwMjZpZD01ODA4YTg2NTBhZGNlYWVkN2ZhZjE1ZGJmMmM4MTk0NzZkYzZlNTU0NTUxNWQ5NzM2NDQzZDNmYjBkMjVlMzllXHUwMDI2RT01MkZIQVFPUCIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjR9/dceca202cc88cc70510b16051e14bdb4617fdca634e3949aea572963f7161945&quot; class=&quot;logo-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; style=&quot;text-decoration: none !important; display: inline-block !important;&quot;>
+                                        <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751385510020_IQ_email-header_600x200_01JZ3BC4AKJ1Y6GG77GYWNW81A.png&quot; class=&quot;logo-image&quot; width=&quot;auto&quot; height=&quot;50&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; height: 50px !important; width: auto !important; max-width: 200px !important; display: block !important; margin: 0 auto !important; border: 0 !important;&quot;/>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Main Email Content Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-content&quot; style=&quot;color: black; border-collapse: collapse !important; mso-line-height-rule: exactly !important; padding: 32px 24px !important; background-color: #ffffff !important;&quot; bgcolor=&quot;#ffffff&quot;>
+                                    <p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Hey there,</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>This is the final message you get from us.</strong></p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>Despite our previous messages, you haven't yet claimed your IQ report.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><strong>Your results will be permanently deleted in a couple of hours.</strong></p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>
+Once deleted, you would need to complete the entire 30-question assessment again. This means:
+</p>
+
+<ul>
+<li style=&quot;margin-bottom: 5px !important;&quot;>Your IQ score will be lost</li>
+<li style=&quot;margin-bottom: 5px !important;&quot;>Your personalized cognitive report will be deleted</li>
+<li style=&quot;margin-bottom: 5px !important;&quot;>Your detailed cognitive strengths breakdown will be erased </li>
+<li style=&quot;margin-bottom: 5px !important;&quot;>You won't get access to specialized training and expert courses</li>
+</ul>
+
+
+<div class=&quot;button&quot; style=&quot;text-align: center; margin: 30px 0;&quot;>
+  <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8vbXlpcS5jb20vY2hlY2tvdXQ_Y2lkPTZjMDYxZjkwLTg5YmYtNGNkOC05NDEwLTYyYzU3ZWE5ZWI2Ylx1MDAyNmVtYWlsPXByZXR0eWZsdWZmeWNvd0BnbWFpbC5jb21cblx1MDAyNnI9ZXlKeklqb3hNVElzSW5RaU9qRXlNSDA9XG5cdTAwMjZpPTg4OFxuXHUwMDI2dD0xMjBcblxuXHUwMDI2cXVpel9hbnN3ZXJzPU1UTTZZam8zT2tJNk1URjhNVFE2WWpvNE9rSTZNVE44TVRVNllqbzVPa0k2TW53eE5qcGlPakV3T2tVNk0zd3hOenBpT2pFeE9rUTZOSHd4T0RwaU9qRXlPa1E2TW53eE9UcGlPakV6T2tRNk1ud3lNRHBpT2pFME9rUTZNbnd5TVRwaU9qRTFPa1E2Tkh3eU1qcGlPakUyT2tRNk1ud3lNenBpT2pFM09rSTZNM3d5TkRwaU9qRTRPa0k2Tkh3eU5UcGlPakU1T2tJNk9Id3lOanBpT2pJd09rSTZNM3d5TnpwaU9qSXhPa0k2Tm53eU9EcGlPakl5T2tJNk1ud3lPVHBpT2pJek9rRTZNbnd6TURwaU9qSTBPa0U2TVROOE16RTZZam95TlRwQk9qTjhNekk2WWpveU5qcEJPalY4TXpNNllqb3lOenBET2pkOE16UTZZam95T0RwQ09qSjhNelU2WWpveU9UcEdPalY4TXpZNllqb3pNRHBDT2psOE16YzZZam96TVRwQ09qTT1cdTAwMjZ1dG1fc291cmNlPWVtYWlsXHUwMDI2dXRtX2NhbXBhaWduPXVzZXJfbGVmdF9jaGVja291dFx1MDAyNnV0bV9tZWRpdW09ZW1haWxfMTUiLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo2MjA1fQ/c9e05a0bce8b5da5973411e0ccff9a4a44eaca172b0e9bc1cc02c5d9a3e486fa&quot; target=&quot;_blank&quot; style=&quot;background-color: #0d756e; color: #ffffff; text-decoration: none; padding: 12px 30px; font-size: 18px; border-radius: 6px; display: inline-block; font-weight: 500;&quot;>
+    Save My IQ Results
+  </a>
+</div>
+
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;> Since you've already invested the time to complete the assessment, claiming your results requires just one more step.</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;>The MyIQ Team</p>
+
+<p style=&quot;display: block !important; margin: 13px 0 !important;&quot;><em>P.S. Our assessment has been featured on Fox, Benzinga, MSN, and Yahoo. Join over 25M users who discovered their exact IQ score and cognitive skills.</em></p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                        
+                        <!-- Email Footer Section -->
+                        <table role=&quot;presentation&quot; border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; width=&quot;100%&quot; style=&quot;border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important;&quot;>
+                            <tbody><tr>
+                                <td class=&quot;email-footer&quot; style=&quot;border-collapse: collapse !important; mso-line-height-rule: exactly !important; background-color: #fafafa !important; padding: 32px 24px !important; text-align: center !important; border-top: 1px solid #e0e0e0 !important;&quot; bgcolor=&quot;#fafafa&quot; align=&quot;center&quot;>
+                                    <!-- Social Media Links -->
+                                    <div class=&quot;social-media-container&quot; style=&quot;margin-bottom: 24px !important;&quot;>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LmZhY2Vib29rLmNvbS9NeUlRYXBwIiwiaW50ZXJuYWwiOiJiY2U1MGFmMzEzZTA3MWYxY2FiODI0IiwibGlua19pZCI6MzUxfQ/e813c717b52d6729c9d318583adf02133d6ae98add9d366285922567dd414eaf&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Connect with MyIQ on Facebook&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364369583_facebook-svgrepo-com_01JZ2Q6Z9ZK6SS5ZXSKRWD6Y0N.png&quot; alt=&quot;Facebook&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3Lmluc3RhZ3JhbS5jb20vbXlpcV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjozNTJ9/5425d8ec3ca67a6ce60d130d84f216bddd3711eb13c1b4e6b359cd06caf34313&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Instagram&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751364520926_instagram-svgrepo-com-2_01JZ2QBK6XYBATMPHH4VQ6RDXG.png&quot; alt=&quot;Instagram&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8veC5jb20vTXlJUV9jb20iLCJpbnRlcm5hbCI6ImJjZTUwYWYzMTNlMDcxZjFjYWI4MjQiLCJsaW5rX2lkIjo4NjkyfQ/f7b95cb287dd86f194b34dce1c1b86ac910fe4058f9e8298e9fcaa588d58a254&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on X&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1751365076926_icons8-x-512_01JZ2QWJ2CJPGXC4T3YQ79HFRP.png&quot; alt=&quot;X (formerly Twitter)&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                        <a href=&quot;https://email.myiq.com/e/c/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09IiwiaHJlZiI6Imh0dHBzOi8vd3d3LnJlZGRpdC5jb20vci9NeUlRX09mZmljaWFsLyIsImludGVybmFsIjoiYmNlNTBhZjMxM2UwNzFmMWNhYjgyNCIsImxpbmtfaWQiOjMxMjV9/98ae8f07b3f337fec51f049ee719331b0b466e5c20880862f89a5a9d24f7bb7f&quot; class=&quot;social-media-link&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot; title=&quot;Follow MyIQ on Reddit&quot; style=&quot;display: inline-block !important; width: 40px !important; height: 40px !important; background-color: #0d756e !important; border-radius: 50% !important; margin: 0 8px !important; text-decoration: none !important; vertical-align: middle !important; text-align: center !important; line-height: 40px !important;&quot;>
+                                            <img src=&quot;https://userimg-assets.customeriomail.com/images/client-env-176828/1759966413003_icons8-reddit-64_01K732RGAA79XPHAK17YM72AFN.png&quot; alt=&quot;Reddit MyIQ&quot; class=&quot;social-media-icon&quot; width=&quot;20&quot; height=&quot;20&quot; style=&quot;line-height: 100% !important; outline: none !important; text-decoration: none !important; -ms-interpolation-mode: bicubic !important; width: 20px !important; height: 20px !important; display: block !important; margin: 10px auto !important; border: 0 !important;&quot;/>
+                                        </a>
+                                    </div>
+                                    
+                                    <!-- Company Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        © 2026 MyIQ. All rights reserved.<br/>
+                                        2093 Philadelphia Pike #3129, Claymont, DE 19703, United States
+                                    </p>
+                                    
+                                    <!-- Unsubscribe Information -->
+                                    <p class=&quot;unsubscribe-info&quot; style=&quot;display: block !important; font-size: 12px !important; line-height: 1.4 !important; color: #999999 !important; margin: 0 !important; text-align: center !important; font-family: Arial, Helvetica, sans-serif !important;&quot;>
+                                        You received this email because you subscribed to our updates. 
+                                        You can <a href=&quot;https://email.myiq.com/unsubscribe/dgS85QoAAPHKuCTwyrgkAZzupdCoCyYO13yc3JoR5A==&quot; class=&quot;unsubscribe-link&quot; style=&quot;color: #999999 !important; text-decoration: underline !important;&quot;>unsubscribe</a> anytime.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody></table>
+                    </div>
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+    
+    <!--[if mso | IE]>
+            </td>
+        </tr>
+    </table>
+    <![endif]-->
+
+<img src=&quot;https://email.myiq.com/e/o/eyJlbWFpbF9pZCI6ImRnUzg1UW9BQVBIS3VDVHd5cmdrQVp6dXBkQ29DeVlPMTN5YzNKb1I1QT09In0=&quot; style=&quot;height: 1px !important; max-height: 1px !important; max-width: 1px !important; width: 1px !important; display: none !important;&quot; alt=&quot;&quot;/></body></html>"
+  ></div>
+</div>
+    </div>
+  </div>
+</div>
+<script>
+  document.getElementById("last-updated").textContent =
+    "Updated: " + new Date().toLocaleString("en-GB", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit"
+    });
+  document.querySelectorAll(".column").forEach(function(col) {
+    var count = col.querySelectorAll(".email-card").length;
+    col.querySelector(".column-count").textContent = count + " email" + (count !== 1 ? "s" : "");
+  });
+  document.querySelectorAll(".email-shadow-host").forEach(function(host) {
+    var shadow = host.attachShadow({ mode: "open" });
+    var html = host.getAttribute("data-html");
+    var style = document.createElement("style");
+    style.textContent = "div { width:600px; transform:scale(0.866); transform-origin:top left; height:1039px; overflow-y:auto; background:#fff; padding:0; margin:0; }";
+    var wrapper = document.createElement("div");
+    wrapper.innerHTML = html;
+    shadow.appendChild(style);
+    shadow.appendChild(wrapper);
+  });
+</script>
+</body>
+</html>
